@@ -6,7 +6,7 @@ let statusBarItem: vscode.StatusBarItem;
 let standbyTimer: ReturnType<typeof setInterval> | null = null;
 
 function getPort(): number {
-    const config = vscode.workspace.getConfiguration('copilot-proxy');
+    const config = vscode.workspace.getConfiguration('copilot-lm-proxy');
     return config.get<number>('port', 19823);
 }
 
@@ -14,18 +14,18 @@ type ProxyState = 'running' | 'standby' | 'stopped' | 'error';
 let currentState: ProxyState = 'stopped';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Copilot Proxy extension activated');
+    console.log('Copilot LM Proxy extension activated');
 
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = 'copilot-proxy.start';
+    statusBarItem.command = 'copilot-lm-proxy.start';
     context.subscriptions.push(statusBarItem);
     updateStatusBar('stopped');
 
     startServer();
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('copilot-proxy.start', () => startServer()),
-        vscode.commands.registerCommand('copilot-proxy.stop', stopServer)
+        vscode.commands.registerCommand('copilot-lm-proxy.start', () => startServer()),
+        vscode.commands.registerCommand('copilot-lm-proxy.stop', stopServer)
     );
 }
 
@@ -83,11 +83,11 @@ async function handleDebug(req: http.IncomingMessage, res: http.ServerResponse) 
             }
 
             const msg = vscode.LanguageModelChatMessage.User('Say "test" and nothing else.');
-            console.log('Copilot Proxy Debug: Attempting sendRequest with model:', models[0]?.id);
+            console.log('Copilot LM Proxy Debug: Attempting sendRequest with model:', models[0]?.id);
             
             const response = await models[0].sendRequest([msg], {});
-            console.log('Copilot Proxy Debug: sendRequest returned:', typeof response);
-            console.log('Copilot Proxy Debug: response keys:', Object.keys(response));
+            console.log('Copilot LM Proxy Debug: sendRequest returned:', typeof response);
+            console.log('Copilot LM Proxy Debug: response keys:', Object.keys(response));
             
             let text = '';
             let chunks = 0;
@@ -95,16 +95,16 @@ async function handleDebug(req: http.IncomingMessage, res: http.ServerResponse) 
                 if (part instanceof vscode.LanguageModelTextPart) {
                     chunks++;
                     text += part.value;
-                    console.log(`Copilot Proxy Debug: chunk ${chunks}: "${part.value}"`);
+                    console.log(`Copilot LM Proxy Debug: chunk ${chunks}: "${part.value}"`);
                 } else {
-                    console.log(`Copilot Proxy Debug: non-text part:`, typeof part, JSON.stringify(part));
+                    console.log(`Copilot LM Proxy Debug: non-text part:`, typeof part, JSON.stringify(part));
                 }
             }
             
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ model: models[0].id, chunks, text, responseKeys: Object.keys(response) }));
         } catch (error: any) {
-            console.error('Copilot Proxy Debug error:', error);
+            console.error('Copilot LM Proxy Debug error:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: String(error), code: error?.code, cause: String(error?.cause) }));
         }
@@ -167,8 +167,8 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
                 }
             });
 
-            console.log(`Copilot Proxy: Using model id=${selectedModel.id} family=${selectedModel.family} vendor=${selectedModel.vendor}`);
-            console.log(`Copilot Proxy: Sending ${vscodeMessages.length} messages, stream=${stream}`);
+            console.log(`Copilot LM Proxy: Using model id=${selectedModel.id} family=${selectedModel.family} vendor=${selectedModel.vendor}`);
+            console.log(`Copilot LM Proxy: Sending ${vscodeMessages.length} messages, stream=${stream}`);
 
             const tokenSource = new vscode.CancellationTokenSource();
 
@@ -193,12 +193,12 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
                         res.write(`data: ${data}\n\n`);
                     }
                 }
-                console.log(`Copilot Proxy: Stream finished with ${chunkCount} chunks`);
+                console.log(`Copilot LM Proxy: Stream finished with ${chunkCount} chunks`);
                 res.write('data: [DONE]\n\n');
                 res.end();
                 tokenSource.dispose();
             } else {
-                console.log(`Copilot Proxy: Calling sendRequest...`);
+                console.log(`Copilot LM Proxy: Calling sendRequest...`);
                 let response;
                 try {
                     response = await selectedModel.sendRequest(
@@ -206,11 +206,11 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
                         {},
                         tokenSource.token
                     );
-                    console.log(`Copilot Proxy: sendRequest returned, response type: ${typeof response}, keys: ${Object.keys(response)}`);
+                    console.log(`Copilot LM Proxy: sendRequest returned, response type: ${typeof response}, keys: ${Object.keys(response)}`);
                 } catch (sendErr: any) {
-                    console.error(`Copilot Proxy: sendRequest threw:`, sendErr);
-                    console.error(`Copilot Proxy: cause:`, sendErr?.cause);
-                    console.error(`Copilot Proxy: code:`, sendErr?.code);
+                    console.error(`Copilot LM Proxy: sendRequest threw:`, sendErr);
+                    console.error(`Copilot LM Proxy: cause:`, sendErr?.cause);
+                    console.error(`Copilot LM Proxy: code:`, sendErr?.code);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: `sendRequest failed: ${sendErr}`, code: sendErr?.code }));
                     return;
@@ -225,10 +225,10 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
                         }
                     }
                 } catch (iterErr: any) {
-                    console.error(`Copilot Proxy: stream iteration error after ${chunkCount} chunks:`, iterErr);
+                    console.error(`Copilot LM Proxy: stream iteration error after ${chunkCount} chunks:`, iterErr);
                     // Still return what we got
                 }
-                console.log(`Copilot Proxy: Non-stream finished with ${chunkCount} chunks, response length=${fullResponse.length}`);
+                console.log(`Copilot LM Proxy: Non-stream finished with ${chunkCount} chunks, response length=${fullResponse.length}`);
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
@@ -244,7 +244,7 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
                 tokenSource.dispose();
             }
         } catch (error) {
-            console.error('Copilot Proxy error:', error);
+            console.error('Copilot LM Proxy error:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: String(error) }));
         }
@@ -255,22 +255,22 @@ function updateStatusBar(state: ProxyState) {
     currentState = state;
     switch (state) {
         case 'running':
-            statusBarItem.text = '$(radio-tower) Copilot Proxy';
-            statusBarItem.tooltip = `Copilot Proxy running on port ${getPort()}`;
+            statusBarItem.text = '$(radio-tower) Copilot LM Proxy';
+            statusBarItem.tooltip = `Copilot LM Proxy running on port ${getPort()}`;
             statusBarItem.backgroundColor = undefined;
             break;
         case 'standby':
-            statusBarItem.text = '$(eye) Copilot Proxy (standby)';
+            statusBarItem.text = '$(eye) Copilot LM Proxy (standby)';
             statusBarItem.tooltip = `Another VS Code window is serving on port ${getPort()}. Click to retry.`;
             statusBarItem.backgroundColor = undefined;
             break;
         case 'stopped':
-            statusBarItem.text = '$(circle-slash) Copilot Proxy';
-            statusBarItem.tooltip = 'Copilot Proxy stopped. Click to start.';
+            statusBarItem.text = '$(circle-slash) Copilot LM Proxy';
+            statusBarItem.tooltip = 'Copilot LM Proxy stopped. Click to start.';
             statusBarItem.backgroundColor = undefined;
             break;
         case 'error':
-            statusBarItem.text = '$(error) Copilot Proxy';
+            statusBarItem.text = '$(error) Copilot LM Proxy';
             statusBarItem.tooltip = `Port ${getPort()} blocked. Click to retry.`;
             statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
             break;
@@ -308,12 +308,12 @@ function checkExistingProxy(): Promise<boolean> {
 function enterStandby() {
     stopStandby();
     updateStatusBar('standby');
-    console.log('Copilot Proxy: Entering standby mode (another instance is serving)');
+    console.log('Copilot LM Proxy: Entering standby mode (another instance is serving)');
 
     standbyTimer = setInterval(async () => {
         const alive = await checkExistingProxy();
         if (!alive) {
-            console.log('Copilot Proxy: Existing proxy gone, attempting to take over...');
+            console.log('Copilot LM Proxy: Existing proxy gone, attempting to take over...');
             stopStandby();
             startServer();
         }
@@ -337,8 +337,8 @@ function startServer(retries = 3) {
     server = http.createServer(handleRequest);
     server.listen(getPort(), '127.0.0.1', () => {
         updateStatusBar('running');
-        vscode.window.showInformationMessage(`Copilot Proxy started on http://127.0.0.1:${getPort()}`);
-        console.log(`Copilot Proxy listening on port ${getPort()}`);
+        vscode.window.showInformationMessage(`Copilot LM Proxy started on http://127.0.0.1:${getPort()}`);
+        console.log(`Copilot LM Proxy listening on port ${getPort()}`);
     });
 
     server.on('error', async (err: NodeJS.ErrnoException) => {
@@ -355,13 +355,13 @@ function startServer(retries = 3) {
             // Port is held by a dead process
             if (retries > 0) {
                 const delay = (4 - retries) * 1000; // 1s, 2s, 3s
-                console.log(`Copilot Proxy: Port ${getPort()} held by dead process, retrying in ${delay}ms (${retries} left)...`);
+                console.log(`Copilot LM Proxy: Port ${getPort()} held by dead process, retrying in ${delay}ms (${retries} left)...`);
                 updateStatusBar('error');
                 setTimeout(() => startServer(retries - 1), delay);
             } else {
                 updateStatusBar('error');
                 vscode.window.showErrorMessage(
-                    `Copilot Proxy: Port ${getPort()} is blocked by a dead process. ` +
+                    `Copilot LM Proxy: Port ${getPort()} is blocked by a dead process. ` +
                     `Run: lsof -ti:${getPort()} | xargs kill -9`,
                     'Retry'
                 ).then(choice => {
@@ -370,7 +370,7 @@ function startServer(retries = 3) {
             }
         } else {
             updateStatusBar('error');
-            vscode.window.showErrorMessage(`Copilot Proxy error: ${err.message}`);
+            vscode.window.showErrorMessage(`Copilot LM Proxy error: ${err.message}`);
         }
     });
 }
@@ -382,7 +382,7 @@ function stopServer() {
         server = null;
     }
     updateStatusBar('stopped');
-    vscode.window.showInformationMessage('Copilot Proxy stopped');
+    vscode.window.showInformationMessage('Copilot LM Proxy stopped');
 }
 
 export function deactivate() {

@@ -1,6 +1,6 @@
 {
-    "name": "copilot-proxy",
-    "displayName": "Copilot Proxy",
+    "name": "copilot-lm-proxy",
+    "displayName": "Copilot LM Proxy",
     "description": "Exposes Copilot LLM via local HTTP server for external scripts",
     "version": "0.2.0",
     "publisher": "hsaghir",
@@ -22,18 +22,18 @@
     "contributes": {
         "commands": [
             {
-                "command": "copilot-proxy.start",
-                "title": "Copilot Proxy: Start Server"
+                "command": "copilot-lm-proxy.start",
+                "title": "Copilot LM Proxy: Start Server"
             },
             {
-                "command": "copilot-proxy.stop",
-                "title": "Copilot Proxy: Stop Server"
+                "command": "copilot-lm-proxy.stop",
+                "title": "Copilot LM Proxy: Stop Server"
             }
         ],
         "configuration": {
-            "title": "Copilot Proxy",
+            "title": "Copilot LM Proxy",
             "properties": {
-                "copilot-proxy.port": {
+                "copilot-lm-proxy.port": {
                     "type": "number",
                     "default": 19823,
                     "description": "Port for the proxy HTTP server"
