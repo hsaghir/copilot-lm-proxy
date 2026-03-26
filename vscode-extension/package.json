@@ -6,7 +6,7 @@
     "publisher": "hsaghir",
     "repository": {
         "type": "git",
-        "url": "https://github.com/hsaghir/copilot-proxy"
+        "url": "https://github.com/hsaghir/copilot-lm-proxy"
     },
     "license": "MIT",
     "engines": {

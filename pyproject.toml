@@ -23,9 +23,9 @@ pydantic = ["pydantic>=2.0"]
 dev = ["pytest>=7.0", "pytest-cov>=4.0"]
 
 [project.urls]
-Homepage = "https://github.com/hsaghir/copilot-proxy"
-Repository = "https://github.com/hsaghir/copilot-proxy"
-Issues = "https://github.com/hsaghir/copilot-proxy/issues"
+Homepage = "https://github.com/hsaghir/copilot-lm-proxy"
+Repository = "https://github.com/hsaghir/copilot-lm-proxy"
+Issues = "https://github.com/hsaghir/copilot-lm-proxy/issues"
 
 [build-system]
 requires = ["hatchling"]

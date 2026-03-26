@@ -6,7 +6,7 @@ If you discover a security vulnerability in this project, please report it respo
 
 **Do not open a public issue.**
 
-Instead, email the maintainer directly or use [GitHub's private vulnerability reporting](https://github.com/hsaghir/copilot-proxy/security/advisories/new).
+Instead, email the maintainer directly or use [GitHub's private vulnerability reporting](https://github.com/hsaghir/copilot-lm-proxy/security/advisories/new).
 
 ## Scope
 

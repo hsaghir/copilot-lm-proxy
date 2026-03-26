@@ -1,6 +1,6 @@
 # Copilot Proxy
 
-[![CI](https://github.com/hsaghir/copilot-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/hsaghir/copilot-proxy/actions/workflows/ci.yml)
+[![CI](https://github.com/hsaghir/copilot-lm-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/hsaghir/copilot-lm-proxy/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -21,8 +21,8 @@ Access GitHub Copilot's LLM models (GPT-4.1, GPT-5.x, Claude, Gemini, and more) 
 ### One-command install
 
 ```bash
-git clone https://github.com/hsaghir/copilot-proxy.git
-cd copilot-proxy
+git clone https://github.com/hsaghir/copilot-lm-proxy.git
+cd copilot-lm-proxy
 make install
 ```
 

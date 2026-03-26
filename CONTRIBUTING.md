@@ -5,8 +5,8 @@ Thanks for your interest in contributing!
 ## Development Setup
 
 ```bash
-git clone https://github.com/hsaghir/copilot-proxy.git
-cd copilot-proxy
+git clone https://github.com/hsaghir/copilot-lm-proxy.git
+cd copilot-lm-proxy
 
 # Install Python package with dev dependencies
 pip install -e ".[dev]"
