@@ -25,7 +25,7 @@ test-cov: ## Run tests with coverage report
 
 uninstall: ## Uninstall extension and Python package
 	code --uninstall-extension hsaghir.copilot-proxy || true
-	pip uninstall -y copilot-proxy || true
+	pip uninstall -y copilot-lm-proxy || true
 
 clean: ## Remove build artifacts
 	rm -rf vscode-extension/out vscode-extension/node_modules vscode-extension/*.vsix

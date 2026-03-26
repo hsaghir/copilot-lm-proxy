@@ -10,8 +10,8 @@ TITLE_H = 30
 COLS = 85
 
 lines = [
-    ("prompt", "$ pip install copilot-proxy"),
-    ("output", "Successfully installed copilot-proxy-0.1.0"),
+    ("prompt", "$ pip install copilot-lm-proxy"),
+    ("output", "Successfully installed copilot-lm-proxy-0.1.0"),
     ("blank", ""),
     ("prompt", '$ python -c "from copilot_proxy import ask; print(ask(\'Hello!\'))"'),
     ("output", "Hello! How can I help you today?"),

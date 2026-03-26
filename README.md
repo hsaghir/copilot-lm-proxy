@@ -137,7 +137,7 @@ With a GitHub Copilot subscription you get access to many models. Run `list_mode
 ## Structured Output with Pydantic
 
 ```bash
-pip install copilot-proxy[pydantic]
+pip install copilot-lm-proxy[pydantic]
 ```
 
 ```python

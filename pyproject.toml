@@ -1,5 +1,5 @@
 [project]
-name = "copilot-proxy"
+name = "copilot-lm-proxy"
 version = "0.1.0"
 description = "Python client for accessing GitHub Copilot LLMs via local proxy"
 readme = "README.md"
