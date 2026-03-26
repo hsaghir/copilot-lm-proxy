@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-03-26
+
+### Changed
+- Renamed PyPI package to `copilot-lm-proxy` (import unchanged: `from copilot_proxy import ask`)
+- Configurable port via VS Code settings (`copilot-proxy.port`)
+- Configurable URL via `COPILOT_PROXY_URL` environment variable
+
+### Added
+- Status bar indicator (running / standby / stopped / error)
+- Multi-window support with automatic standby and takeover
+- Smart port conflict handling with health checks
+- `/health` endpoint for liveness checks
+- `is_running()` helper function
+- Error hierarchy: `CopilotProxyError`, `ProxyConnectionError`, `ModelNotFoundError`
+- OpenAI-compatible `/v1/models` response format
+- Request validation and client disconnect handling
+- `py.typed` marker for PEP 561
+- GitHub Actions CI and PyPI publish workflows
+- Issue templates, CHANGELOG, SECURITY, CODE_OF_CONDUCT
+- `.editorconfig` and ruff configuration
+- Demo SVG in README
+
 ## [0.1.0] - 2025-03-26
 
 ### Added
