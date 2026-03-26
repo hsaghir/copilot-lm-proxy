@@ -15,6 +15,7 @@ from .client import (
     ProxyConnectionError,
     ask,
     chat,
+    is_running,
     list_models,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "ModelNotFoundError",
     "ask",
     "chat",
+    "is_running",
     "list_models",
 ]
 __version__ = "0.1.0"

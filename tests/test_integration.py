@@ -8,25 +8,15 @@ Run with: pytest tests/test_integration.py -v
 
 from __future__ import annotations
 
-import urllib.request
-
 import pytest
 
-from copilot_proxy import CopilotClient
+from copilot_proxy import CopilotClient, is_running
 
 PROXY_URL = "http://127.0.0.1:19823"
 
 
-def proxy_is_running() -> bool:
-    try:
-        urllib.request.urlopen(f"{PROXY_URL}/v1/models", timeout=2)
-        return True
-    except Exception:
-        return False
-
-
 pytestmark = pytest.mark.skipif(
-    not proxy_is_running(),
+    not is_running(),
     reason="Copilot Proxy not running on port 19823",
 )
 

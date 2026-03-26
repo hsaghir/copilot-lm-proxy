@@ -2,14 +2,25 @@ import * as vscode from 'vscode';
 import * as http from 'http';
 
 let server: http.Server | null = null;
+let statusBarItem: vscode.StatusBarItem;
+let standbyTimer: ReturnType<typeof setInterval> | null = null;
 const PORT = 19823;
+
+type ProxyState = 'running' | 'standby' | 'stopped' | 'error';
+let currentState: ProxyState = 'stopped';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Copilot Proxy extension activated');
+
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    statusBarItem.command = 'copilot-proxy.start';
+    context.subscriptions.push(statusBarItem);
+    updateStatusBar('stopped');
+
     startServer();
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('copilot-proxy.start', startServer),
+        vscode.commands.registerCommand('copilot-proxy.start', () => startServer()),
         vscode.commands.registerCommand('copilot-proxy.stop', stopServer)
     );
 }
@@ -22,6 +33,12 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
+        return;
+    }
+
+    if (req.url === '/health' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', pid: process.pid }));
         return;
     }
 
@@ -230,43 +247,144 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
     });
 }
 
-function startServer(retries = 5) {
+function updateStatusBar(state: ProxyState) {
+    currentState = state;
+    switch (state) {
+        case 'running':
+            statusBarItem.text = '$(radio-tower) Copilot Proxy';
+            statusBarItem.tooltip = `Copilot Proxy running on port ${PORT}`;
+            statusBarItem.backgroundColor = undefined;
+            break;
+        case 'standby':
+            statusBarItem.text = '$(eye) Copilot Proxy (standby)';
+            statusBarItem.tooltip = `Another VS Code window is serving on port ${PORT}. Click to retry.`;
+            statusBarItem.backgroundColor = undefined;
+            break;
+        case 'stopped':
+            statusBarItem.text = '$(circle-slash) Copilot Proxy';
+            statusBarItem.tooltip = 'Copilot Proxy stopped. Click to start.';
+            statusBarItem.backgroundColor = undefined;
+            break;
+        case 'error':
+            statusBarItem.text = '$(error) Copilot Proxy';
+            statusBarItem.tooltip = `Port ${PORT} blocked. Click to retry.`;
+            statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+            break;
+    }
+    statusBarItem.show();
+}
+
+/**
+ * Check if something is already listening on the port and responding to requests.
+ * Returns true if another healthy proxy is running.
+ */
+function checkExistingProxy(): Promise<boolean> {
+    return new Promise((resolve) => {
+        const req = http.get(`http://127.0.0.1:${PORT}/health`, { timeout: 2000 }, (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    resolve(parsed.status === 'ok');
+                } catch {
+                    resolve(false);
+                }
+            });
+        });
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+    });
+}
+
+/**
+ * Enter standby mode: periodically check if the port becomes available,
+ * and take over when it does.
+ */
+function enterStandby() {
+    stopStandby();
+    updateStatusBar('standby');
+    console.log('Copilot Proxy: Entering standby mode (another instance is serving)');
+
+    standbyTimer = setInterval(async () => {
+        const alive = await checkExistingProxy();
+        if (!alive) {
+            console.log('Copilot Proxy: Existing proxy gone, attempting to take over...');
+            stopStandby();
+            startServer();
+        }
+    }, 10000); // Check every 10 seconds
+}
+
+function stopStandby() {
+    if (standbyTimer) {
+        clearInterval(standbyTimer);
+        standbyTimer = null;
+    }
+}
+
+function startServer(retries = 3) {
     if (server) {
         server.close();
         server = null;
     }
+    stopStandby();
 
     server = http.createServer(handleRequest);
     server.listen(PORT, '127.0.0.1', () => {
+        updateStatusBar('running');
         vscode.window.showInformationMessage(`Copilot Proxy started on http://127.0.0.1:${PORT}`);
         console.log(`Copilot Proxy listening on port ${PORT}`);
     });
 
-    server.on('error', (err: NodeJS.ErrnoException) => {
+    server.on('error', async (err: NodeJS.ErrnoException) => {
+        server = null;
         if (err.code === 'EADDRINUSE') {
-            server = null;
-            if (retries <= 0) {
-                vscode.window.showErrorMessage(`Copilot Proxy: Port ${PORT} still in use after retries. Run "Copilot Proxy: Start" command to retry.`);
+            // Check if a healthy proxy is already running (another window)
+            const alive = await checkExistingProxy();
+            if (alive) {
+                // Another window is serving — go into standby silently
+                enterStandby();
                 return;
             }
-            const delay = (6 - retries) * 1000; // 1s, 2s, 3s, 4s, 5s
-            console.log(`Copilot Proxy: Port ${PORT} in use, retrying in ${delay}ms (${retries} retries left)...`);
-            setTimeout(() => startServer(retries - 1), delay);
+
+            // Port is held by a dead process
+            if (retries > 0) {
+                const delay = (4 - retries) * 1000; // 1s, 2s, 3s
+                console.log(`Copilot Proxy: Port ${PORT} held by dead process, retrying in ${delay}ms (${retries} left)...`);
+                updateStatusBar('error');
+                setTimeout(() => startServer(retries - 1), delay);
+            } else {
+                updateStatusBar('error');
+                vscode.window.showErrorMessage(
+                    `Copilot Proxy: Port ${PORT} is blocked by a dead process. ` +
+                    `Run: lsof -ti:${PORT} | xargs kill -9`,
+                    'Retry'
+                ).then(choice => {
+                    if (choice === 'Retry') { startServer(); }
+                });
+            }
         } else {
+            updateStatusBar('error');
             vscode.window.showErrorMessage(`Copilot Proxy error: ${err.message}`);
-            server = null;
         }
     });
 }
 
 function stopServer() {
+    stopStandby();
     if (server) {
         server.close();
         server = null;
-        vscode.window.showInformationMessage('Copilot Proxy stopped');
     }
+    updateStatusBar('stopped');
+    vscode.window.showInformationMessage('Copilot Proxy stopped');
 }
 
 export function deactivate() {
-    stopServer();
+    stopStandby();
+    if (server) {
+        server.close();
+        server = null;
+    }
 }

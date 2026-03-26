@@ -55,7 +55,7 @@ class MockProxyHandler(http.server.BaseHTTPRequestHandler):
         if self.path == "/v1/models":
             self._send_json({"object": "list", "data": MOCK_MODELS, "models": MOCK_MODELS})
         elif self.path == "/health":
-            self._send_json({"status": "ok"})
+            self._send_json({"status": "ok", "pid": 12345})
         else:
             self._send_json({"error": "Not found"}, 404)
 
@@ -215,6 +215,13 @@ class TestCopilotClient:
         # Should still work
         result = c.ask("Quick test")
         assert isinstance(result, str)
+
+    def test_is_running_true(self, client: CopilotClient) -> None:
+        assert client.is_running() is True
+
+    def test_is_running_false(self) -> None:
+        bad_client = CopilotClient(base_url="http://127.0.0.1:1", timeout=2)
+        assert bad_client.is_running() is False
 
 
 # ---------------------------------------------------------------------------

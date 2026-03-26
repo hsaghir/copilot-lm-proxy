@@ -65,6 +65,14 @@ class CopilotClient:
                 "Is the VS Code extension running? Try reloading VS Code."
             ) from e
 
+    def is_running(self) -> bool:
+        """Check if the proxy server is running and healthy."""
+        try:
+            result = self._request("/health")
+            return result.get("status") == "ok"
+        except CopilotProxyError:
+            return False
+
     def list_models(self) -> list[dict]:
         """List available Copilot models.
 
@@ -175,3 +183,8 @@ def chat(
 def ask(prompt: str, model: str | None = None) -> str:
     """Simple helper to ask a single question."""
     return _get_client().ask(prompt, model=model)
+
+
+def is_running() -> bool:
+    """Check if the Copilot Proxy server is running."""
+    return _get_client().is_running()
