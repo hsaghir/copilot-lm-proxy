@@ -1,0 +1,38 @@
+{
+    "name": "copilot-proxy",
+    "displayName": "Copilot Proxy",
+    "description": "Exposes Copilot LLM via local HTTP server for external scripts",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.90.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "copilot-proxy.start",
+                "title": "Copilot Proxy: Start Server"
+            },
+            {
+                "command": "copilot-proxy.stop",
+                "title": "Copilot Proxy: Stop Server"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "@types/vscode": "^1.90.0",
+        "typescript": "^5.0.0"
+    }
+}
