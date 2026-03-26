@@ -6,6 +6,10 @@
 
 Access GitHub Copilot's LLM models (GPT-4.1, GPT-5.x, Claude, Gemini, and more) from any Python script via a local HTTP server. Works with the standard OpenAI Python client. Zero dependencies.
 
+<p align="center">
+  <img src="assets/demo.svg" alt="Copilot Proxy Demo" width="700">
+</p>
+
 ## Prerequisites
 
 - **VS Code** with the **GitHub Copilot** extension (requires a Copilot subscription)
