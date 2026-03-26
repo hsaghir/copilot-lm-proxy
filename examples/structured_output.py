@@ -8,8 +8,11 @@ Usage: python examples/structured_output.py
 
 import json
 import urllib.request
+from typing import TypeVar
 
 from pydantic import BaseModel
+
+T = TypeVar("T", bound=BaseModel)
 
 PROXY_URL = "http://127.0.0.1:19823"
 
@@ -54,7 +57,7 @@ class NeuralNetExplanation(BaseModel):
     difficulty_level: str
 
 
-def get_structured[T: BaseModel](
+def get_structured(
     prompt: str, schema: type[T], model: str = "claude-opus-4.5"
 ) -> T:
     """Get structured response matching a Pydantic schema."""
