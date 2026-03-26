@@ -1,6 +1,10 @@
 # Copilot Proxy
 
-Access GitHub Copilot's LLM models (GPT-4.1, GPT-5.x, Claude, Gemini, and more) from any Python script via a local HTTP server. Works with the standard OpenAI Python client.
+[![CI](https://github.com/hsaghir/copilot-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/hsaghir/copilot-proxy/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Access GitHub Copilot's LLM models (GPT-4.1, GPT-5.x, Claude, Gemini, and more) from any Python script via a local HTTP server. Works with the standard OpenAI Python client. Zero dependencies.
 
 ## Prerequisites
 
@@ -147,6 +151,19 @@ response = ask(prompt, model="gpt-4.1")
 review = MovieReview.model_validate_json(response)
 ```
 
+## Error Handling
+
+```python
+from copilot_proxy import ask, ConnectionError, ModelNotFoundError
+
+try:
+    result = ask("Hello", model="gpt-4.1")
+except ConnectionError:
+    print("Proxy not running — reload VS Code")
+except ModelNotFoundError:
+    print("Model not available")
+```
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -156,6 +173,16 @@ review = MovieReview.model_validate_json(response)
 | Empty responses | Make sure you're signed into GitHub Copilot in VS Code. |
 | `No models available` | Open Copilot Chat in VS Code first to initialize the session. |
 | Model returns empty but `gpt-4o` works | Try specifying a different model — not all models are available in all regions. |
+
+## Development
+
+```bash
+pip install -e ".[dev]"      # install with test deps
+pytest tests/test_client.py -v  # unit tests (no proxy needed)
+pytest -v                       # all tests (proxy must be running)
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 

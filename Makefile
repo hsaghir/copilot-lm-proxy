@@ -1,4 +1,4 @@
-.PHONY: install install-extension install-python uninstall clean
+.PHONY: install install-extension install-python uninstall clean test
 
 install: install-extension install-python ## Install everything (extension + Python client)
 	@echo ""
@@ -12,7 +12,16 @@ install-extension: ## Build and install the VS Code extension
 	code --install-extension vscode-extension/copilot-proxy.vsix --force
 
 install-python: ## Install the Python client (editable)
-	pip install -e .
+	pip install -e ".[dev]"
+
+test: ## Run unit tests
+	pytest tests/test_client.py -v
+
+test-all: ## Run all tests (requires proxy running)
+	pytest -v
+
+test-cov: ## Run tests with coverage report
+	pytest tests/test_client.py --cov=copilot_proxy --cov-report=term-missing -v
 
 uninstall: ## Uninstall extension and Python package
 	code --uninstall-extension undefined_publisher.copilot-proxy || true
@@ -20,4 +29,5 @@ uninstall: ## Uninstall extension and Python package
 
 clean: ## Remove build artifacts
 	rm -rf vscode-extension/out vscode-extension/node_modules vscode-extension/*.vsix
-	rm -rf build dist *.egg-info src/*.egg-info
+	rm -rf build dist *.egg-info src/*.egg-info .pytest_cache
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
