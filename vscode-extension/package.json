@@ -29,7 +29,17 @@
                 "command": "copilot-proxy.stop",
                 "title": "Copilot Proxy: Stop Server"
             }
-        ]
+        ],
+        "configuration": {
+            "title": "Copilot Proxy",
+            "properties": {
+                "copilot-proxy.port": {
+                    "type": "number",
+                    "default": 19823,
+                    "description": "Port for the proxy HTTP server"
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",

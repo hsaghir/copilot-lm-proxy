@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Iterator
 
-DEFAULT_URL = "http://127.0.0.1:19823"
+DEFAULT_URL = os.environ.get("COPILOT_PROXY_URL", "http://127.0.0.1:19823")
 
 
 class CopilotProxyError(Exception):

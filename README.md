@@ -43,6 +43,8 @@ Reload VS Code. The proxy starts automatically on `http://127.0.0.1:19823`.
 
 ```bash
 pip install -e .
+# or with uv:
+uv pip install -e .
 ```
 
 </details>
@@ -150,6 +152,15 @@ prompt = f"Review Inception. Return JSON matching this schema: {json.dumps(schem
 response = ask(prompt, model="gpt-4.1")
 review = MovieReview.model_validate_json(response)
 ```
+
+## Configuration
+
+The proxy uses sensible defaults but everything is configurable:
+
+| Setting | Default | How to change |
+|---------|---------|---------------|
+| Proxy port | `19823` | VS Code: `Settings → Copilot Proxy → Port` |
+| Python base URL | `http://127.0.0.1:19823` | Env var `COPILOT_PROXY_URL` or `CopilotClient(base_url=...)` |
 
 ## Error Handling
 
