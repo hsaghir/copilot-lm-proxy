@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a demo SVG image showing copilot-proxy usage."""
+"""Generate a demo SVG image showing copilot-lm-proxy usage."""
 
 from html import escape
 
@@ -35,7 +35,7 @@ svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{svg_w}" height="{svg_h
   <circle cx="20" cy="15" r="6" fill="#ff5f57"/>
   <circle cx="38" cy="15" r="6" fill="#febc2e"/>
   <circle cx="56" cy="15" r="6" fill="#28c840"/>
-  <text x="{svg_w // 2}" y="17" fill="#6c7086" font-size="12" font-family="monospace" text-anchor="middle">copilot-proxy demo</text>
+  <text x="{svg_w // 2}" y="17" fill="#6c7086" font-size="12" font-family="monospace" text-anchor="middle">copilot-lm-proxy demo</text>
   <g transform="translate({PADDING},{PADDING + TITLE_H})">
 '''
 

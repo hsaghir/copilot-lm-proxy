@@ -41,11 +41,11 @@ events += output("$ ", t)
 t += 0.3
 
 # Type pip install
-events += type_text("pip install copilot-proxy", t, 0.04)
-t += len("pip install copilot-proxy") * 0.04 + 0.2
+events += type_text("pip install copilot-lm-proxy", t, 0.04)
+t += len("pip install copilot-lm-proxy") * 0.04 + 0.2
 events += output("\r\n", t)
 t += 0.3
-events += output("Successfully installed copilot-proxy-0.1.0\r\n", t)
+events += output("Successfully installed copilot-lm-proxy-0.2.0\r\n", t)
 t += 0.8
 
 # Prompt

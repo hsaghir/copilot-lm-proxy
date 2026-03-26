@@ -1,6 +1,7 @@
-# Copilot Proxy
+# Copilot LM Proxy
 
 [![CI](https://github.com/hsaghir/copilot-lm-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/hsaghir/copilot-lm-proxy/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/copilot-lm-proxy)](https://pypi.org/project/copilot-lm-proxy/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -38,7 +39,7 @@ cd vscode-extension
 npm install
 npm run compile
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension copilot-proxy.vsix
+code --install-extension copilot-lm-proxy.vsix
 ```
 
 Reload VS Code. The proxy starts automatically on `http://127.0.0.1:19823`.

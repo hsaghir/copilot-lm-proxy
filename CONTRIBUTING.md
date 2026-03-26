@@ -31,7 +31,7 @@ pytest --cov=copilot_proxy -v
 ## Project Structure
 
 ```
-copilot-proxy/
+copilot-lm-proxy/
 ├── src/copilot_proxy/      # Python client library (zero dependencies)
 │   ├── __init__.py          # Public API exports
 │   └── client.py            # CopilotClient implementation

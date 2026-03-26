@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Basic usage examples for copilot-proxy."""
+"""Basic usage examples for copilot-lm-proxy."""
 
 from copilot_proxy import ask, chat, list_models
 

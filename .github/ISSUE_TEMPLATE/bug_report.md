@@ -20,7 +20,7 @@ What should have happened.
 - OS: [e.g. macOS 15, Ubuntu 24.04]
 - VS Code version: [e.g. 1.96]
 - Python version: [e.g. 3.12]
-- copilot-proxy version: [e.g. 0.1.0]
+- copilot-lm-proxy version: [e.g. 0.2.0]
 
 **Logs** (if applicable)
 Check VS Code Output panel → select "Copilot Proxy" from the dropdown.

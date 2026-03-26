@@ -8,8 +8,8 @@ install: install-extension install-python ## Install everything (extension + Pyt
 install-extension: ## Build and install the VS Code extension
 	cd vscode-extension && npm install --no-audit --no-fund
 	cd vscode-extension && npm run compile
-	cd vscode-extension && npx @vscode/vsce package --allow-missing-repository -o copilot-proxy.vsix
-	code --install-extension vscode-extension/copilot-proxy.vsix --force
+	cd vscode-extension && npx @vscode/vsce package --allow-missing-repository -o copilot-lm-proxy.vsix
+	code --install-extension vscode-extension/copilot-lm-proxy.vsix --force
 
 install-python: ## Install the Python client (editable)
 	pip install -e ".[dev]"
@@ -24,7 +24,7 @@ test-cov: ## Run tests with coverage report
 	pytest tests/test_client.py --cov=copilot_proxy --cov-report=term-missing -v
 
 uninstall: ## Uninstall extension and Python package
-	code --uninstall-extension hsaghir.copilot-proxy || true
+	code --uninstall-extension hsaghir.copilot-lm-proxy || true
 	pip uninstall -y copilot-lm-proxy || true
 
 clean: ## Remove build artifacts
