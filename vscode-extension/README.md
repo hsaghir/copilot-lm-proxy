@@ -7,8 +7,8 @@ Exposes GitHub Copilot's LLM API via a local HTTP server.
 ```bash
 npm install
 npm run compile
-npx @vscode/vsce package --allow-missing-repository
-code --install-extension copilot-proxy-0.0.1.vsix
+npx @vscode/vsce package -o copilot-proxy.vsix
+code --install-extension copilot-proxy.vsix
 ```
 
 ## Usage

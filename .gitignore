@@ -15,5 +15,14 @@ vscode-extension/*.vsix
 .vscode/
 .idea/
 
+# Lock files
+uv.lock
+
+# Benchmarks
+.benchmarks/
+
+# Test/cache
+.pytest_cache/
+
 # OS
 .DS_Store

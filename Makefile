@@ -24,7 +24,7 @@ test-cov: ## Run tests with coverage report
 	pytest tests/test_client.py --cov=copilot_proxy --cov-report=term-missing -v
 
 uninstall: ## Uninstall extension and Python package
-	code --uninstall-extension undefined_publisher.copilot-proxy || true
+	code --uninstall-extension hsaghir.copilot-proxy || true
 	pip uninstall -y copilot-proxy || true
 
 clean: ## Remove build artifacts
