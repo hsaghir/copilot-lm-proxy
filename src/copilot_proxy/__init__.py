@@ -9,10 +9,10 @@ Usage:
 """
 
 from .client import (
-    ConnectionError,
     CopilotClient,
     CopilotProxyError,
     ModelNotFoundError,
+    ProxyConnectionError,
     ask,
     chat,
     list_models,
@@ -21,7 +21,7 @@ from .client import (
 __all__ = [
     "CopilotClient",
     "CopilotProxyError",
-    "ConnectionError",
+    "ProxyConnectionError",
     "ModelNotFoundError",
     "ask",
     "chat",

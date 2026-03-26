@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Minimal script to call Claude Opus 4.5 via Copilot Proxy.
-Demonstrates both regular text and structured output with Pydantic.
+Demonstrates both regular text and structured output with Pydantic
+using the Copilot Proxy.
 
 Usage: python examples/structured_output.py
 """
@@ -17,7 +17,7 @@ T = TypeVar("T", bound=BaseModel)
 PROXY_URL = "http://127.0.0.1:19823"
 
 
-def call_llm(prompt: str, model: str = "claude-opus-4.5") -> str:
+def call_llm(prompt: str, model: str = "gpt-4.1") -> str:
     """Call LLM via Copilot Proxy."""
     payload = {"model": model, "messages": [{"role": "user", "content": prompt}]}
     req = urllib.request.Request(
@@ -58,7 +58,7 @@ class NeuralNetExplanation(BaseModel):
 
 
 def get_structured(
-    prompt: str, schema: type[T], model: str = "claude-opus-4.5"
+    prompt: str, schema: type[T], model: str = "gpt-4.1"
 ) -> T:
     """Get structured response matching a Pydantic schema."""
     schema_json = schema.model_json_schema()
@@ -77,7 +77,7 @@ Output ONLY the JSON, no markdown, no explanation."""
 if __name__ == "__main__":
     # Test 1: Regular text
     print("=" * 60)
-    print("Test 1: Regular text call to Claude Opus 4.5")
+    print("Test 1: Regular text call")
     print("=" * 60)
     response = call_llm("Hey, explain neural nets in 2-3 sentences.")
     print(response)

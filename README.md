@@ -154,11 +154,11 @@ review = MovieReview.model_validate_json(response)
 ## Error Handling
 
 ```python
-from copilot_proxy import ask, ConnectionError, ModelNotFoundError
+from copilot_proxy import ask, ProxyConnectionError, ModelNotFoundError
 
 try:
     result = ask("Hello", model="gpt-4.1")
-except ConnectionError:
+except ProxyConnectionError:
     print("Proxy not running — reload VS Code")
 except ModelNotFoundError:
     print("Model not available")

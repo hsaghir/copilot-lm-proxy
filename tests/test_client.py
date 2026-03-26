@@ -12,10 +12,10 @@ from unittest.mock import patch
 import pytest
 
 from copilot_proxy import (
-    ConnectionError,
     CopilotClient,
     CopilotProxyError,
     ModelNotFoundError,
+    ProxyConnectionError,
     ask,
     chat,
     list_models,
@@ -53,7 +53,7 @@ class MockProxyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/v1/models":
-            self._send_json({"models": MOCK_MODELS})
+            self._send_json({"object": "list", "data": MOCK_MODELS, "models": MOCK_MODELS})
         elif self.path == "/health":
             self._send_json({"status": "ok"})
         else:
@@ -61,7 +61,7 @@ class MockProxyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if self.path == "/v1/models":
-            self._send_json({"models": MOCK_MODELS})
+            self._send_json({"object": "list", "data": MOCK_MODELS, "models": MOCK_MODELS})
 
         elif self.path == "/v1/chat/completions":
             data = self._read_body()
@@ -194,12 +194,12 @@ class TestCopilotClient:
 
     def test_connection_error_bad_port(self) -> None:
         bad_client = CopilotClient(base_url="http://127.0.0.1:1", timeout=2)
-        with pytest.raises(ConnectionError, match="Cannot connect"):
+        with pytest.raises(ProxyConnectionError, match="Cannot connect"):
             bad_client.list_models()
 
     def test_connection_error_is_copilot_proxy_error(self) -> None:
-        """ConnectionError should be a subclass of CopilotProxyError."""
-        assert issubclass(ConnectionError, CopilotProxyError)
+        """ProxyConnectionError should be a subclass of CopilotProxyError."""
+        assert issubclass(ProxyConnectionError, CopilotProxyError)
 
     def test_model_not_found_is_copilot_proxy_error(self) -> None:
         assert issubclass(ModelNotFoundError, CopilotProxyError)

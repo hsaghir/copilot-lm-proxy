@@ -55,6 +55,12 @@ async function handleDebug(req: http.IncomingMessage, res: http.ServerResponse) 
             const selector: vscode.LanguageModelChatSelector = model ? { id: model } : {};
             const models = await vscode.lm.selectChatModels(selector);
             
+            if (models.length === 0) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'No models found. Is Copilot signed in?' }));
+                return;
+            }
+
             const msg = vscode.LanguageModelChatMessage.User('Say "test" and nothing else.');
             console.log('Copilot Proxy Debug: Attempting sendRequest with model:', models[0]?.id);
             
@@ -89,13 +95,15 @@ async function handleListModels(res: http.ServerResponse) {
         const models = await vscode.lm.selectChatModels({});
         const modelList = models.map(m => ({
             id: m.id,
+            object: 'model',
             family: m.family,
             vendor: m.vendor,
             version: m.version,
             maxInputTokens: m.maxInputTokens
         }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ models: modelList }));
+        // Return both OpenAI format (data) and legacy format (models)
+        res.end(JSON.stringify({ object: 'list', data: modelList, models: modelList }));
     } catch (error) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: String(error) }));
@@ -108,7 +116,14 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
 
     req.on('end', async () => {
         try {
-            const { model, messages, stream } = JSON.parse(body);
+            const parsed = JSON.parse(body);
+            const { model, messages, stream } = parsed;
+
+            if (!messages || !Array.isArray(messages)) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: '"messages" is required and must be an array' }));
+                return;
+            }
 
             const selector: vscode.LanguageModelChatSelector = model ? { id: model } : {};
             const models = await vscode.lm.selectChatModels(selector);
@@ -136,6 +151,11 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
 
             const tokenSource = new vscode.CancellationTokenSource();
 
+            // Cancel LLM request if HTTP client disconnects
+            req.on('close', () => {
+                tokenSource.cancel();
+            });
+
             if (stream) {
                 res.writeHead(200, {
                     'Content-Type': 'text/event-stream',
@@ -155,6 +175,7 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
                 console.log(`Copilot Proxy: Stream finished with ${chunkCount} chunks`);
                 res.write('data: [DONE]\n\n');
                 res.end();
+                tokenSource.dispose();
             } else {
                 console.log(`Copilot Proxy: Calling sendRequest...`);
                 let response;
@@ -190,12 +211,16 @@ async function handleChatCompletion(req: http.IncomingMessage, res: http.ServerR
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
+                    id: `chatcmpl-${Date.now()}`,
+                    object: 'chat.completion',
                     model: selectedModel.id,
                     choices: [{
+                        index: 0,
                         message: { role: 'assistant', content: fullResponse },
                         finish_reason: 'stop'
                     }]
                 }));
+                tokenSource.dispose();
             }
         } catch (error) {
             console.error('Copilot Proxy error:', error);

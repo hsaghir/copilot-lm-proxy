@@ -14,7 +14,7 @@ class CopilotProxyError(Exception):
     """Base exception for Copilot Proxy errors."""
 
 
-class ConnectionError(CopilotProxyError):
+class ProxyConnectionError(CopilotProxyError):
     """Raised when the proxy server is unreachable."""
 
 
@@ -60,7 +60,7 @@ class CopilotClient:
                 if e.code == 404:
                     raise ModelNotFoundError(msg) from e
                 raise CopilotProxyError(msg) from e
-            raise ConnectionError(
+            raise ProxyConnectionError(
                 f"Cannot connect to Copilot Proxy at {self.base_url}. "
                 "Is the VS Code extension running? Try reloading VS Code."
             ) from e
@@ -74,7 +74,9 @@ class CopilotClient:
         Raises:
             ConnectionError: If the proxy server is unreachable.
         """
-        return self._request("/v1/models")["models"]
+        result = self._request("/v1/models")
+        # Support both our format {"models": [...]} and OpenAI format {"data": [...]}
+        return result.get("models") or result.get("data", [])
 
     def chat(
         self,
@@ -125,7 +127,7 @@ class CopilotClient:
                             if "content" in delta:
                                 yield delta["content"]
         except urllib.error.URLError as e:
-            raise ConnectionError(
+            raise ProxyConnectionError(
                 f"Cannot connect to Copilot Proxy at {self.base_url}. "
                 "Is the VS Code extension running?"
             ) from e

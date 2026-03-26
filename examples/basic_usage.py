@@ -16,9 +16,9 @@ response = ask("What is 2 + 2? Reply with just the number.")
 print(response)
 
 print("\n" + "=" * 40)
-print("Using Claude Opus 4.5:")
+print("Using GPT-4.1:")
 print("=" * 40)
-response = ask("Explain quantum computing in one sentence.", model="claude-opus-4.5")
+response = ask("Explain quantum computing in one sentence.", model="gpt-4.1")
 print(response)
 
 print("\n" + "=" * 40)
