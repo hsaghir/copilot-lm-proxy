@@ -245,8 +245,7 @@ class TestAsyncChatStreaming:
         ):
             count += 1
             break
-        # Just confirm we got at least one chunk and didn't hang
-        assert count >= 0
+        assert count == 1
 
     async def test_stream_connection_error(self) -> None:
         bad = AsyncCopilotClient(base_url="http://127.0.0.1:1", timeout=2)

@@ -27,11 +27,5 @@ uv.lock
 # OS
 .DS_Store
 
-# Ralph auto-added patterns
-*.pyc
-.venv/
-venv/
-node_modules/
-.env
-.mypy_cache/
-.ruff_cache/
+# Ralph working data (auto-added)
+scratch/ralph/

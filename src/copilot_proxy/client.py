@@ -28,6 +28,40 @@ class ModelNotFoundError(CopilotProxyError):
     """Raised when the requested model is not available."""
 
 
+def _http_request(
+    base_url: str, path: str, data: dict | None, method: str, timeout: int
+) -> dict:
+    """Shared synchronous HTTP helper used by both client classes.
+
+    Returns the parsed JSON response.
+    Raises CopilotProxyError subclasses on failure.
+    """
+    url = f"{base_url}{path}"
+    body = json.dumps(data).encode() if data is not None else None
+    headers = {"Content-Type": "application/json"} if body else {}
+    if body:
+        method = "POST"
+
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except urllib.error.URLError as e:
+        if isinstance(e, urllib.error.HTTPError):
+            try:
+                err_body = json.loads(e.read())
+                msg = err_body.get("error", str(e))
+            except Exception:
+                msg = str(e)
+            if e.code == 404:
+                raise ModelNotFoundError(msg) from e
+            raise CopilotProxyError(msg) from e
+        raise ProxyConnectionError(
+            f"Cannot connect to Copilot Proxy at {base_url}. "
+            "Is the VS Code extension running? Try reloading VS Code."
+        ) from e
+
+
 class CopilotClient:
     """Client for the Copilot Proxy server.
 
@@ -41,35 +75,8 @@ class CopilotClient:
         self.timeout = timeout
 
     def _request(self, path: str, data: dict | None = None, method: str = "GET") -> dict:
-        """Make an HTTP request to the proxy server.
-
-        Returns the parsed JSON response.
-        Raises CopilotProxyError subclasses on failure.
-        """
-        url = f"{self.base_url}{path}"
-        body = json.dumps(data).encode() if data is not None else None
-        headers = {"Content-Type": "application/json"} if body else {}
-        if body:
-            method = "POST"
-
-        req = urllib.request.Request(url, data=body, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read())
-        except urllib.error.URLError as e:
-            if isinstance(e, urllib.error.HTTPError):
-                try:
-                    err_body = json.loads(e.read())
-                    msg = err_body.get("error", str(e))
-                except Exception:
-                    msg = str(e)
-                if e.code == 404:
-                    raise ModelNotFoundError(msg) from e
-                raise CopilotProxyError(msg) from e
-            raise ProxyConnectionError(
-                f"Cannot connect to Copilot Proxy at {self.base_url}. "
-                "Is the VS Code extension running? Try reloading VS Code."
-            ) from e
+        """Make an HTTP request to the proxy server."""
+        return _http_request(self.base_url, path, data, method, self.timeout)
 
     def is_running(self) -> bool:
         """Check if the proxy server is running and healthy."""
@@ -86,7 +93,7 @@ class CopilotClient:
             List of model dicts with keys: id, family, vendor, version, maxInputTokens.
 
         Raises:
-            ConnectionError: If the proxy server is unreachable.
+            ProxyConnectionError: If the proxy server is unreachable.
         """
         result = self._request("/v1/models")
         # Support both our format {"models": [...]} and OpenAI format {"data": [...]}
@@ -109,7 +116,7 @@ class CopilotClient:
             Response text (str) or iterator of chunks if stream=True.
 
         Raises:
-            ConnectionError: If the proxy server is unreachable.
+            ProxyConnectionError: If the proxy server is unreachable.
             ModelNotFoundError: If the requested model is not available.
         """
         payload: dict = {"messages": messages, "stream": stream}
@@ -156,10 +163,10 @@ class CopilotClient:
         Returns:
             The model's response as a string.
         """
+        # stream=False (default) guarantees a str return from chat()
         result = self.chat([{"role": "user", "content": prompt}], model=model)
-        if isinstance(result, str):
-            return result
-        return "".join(result)
+        assert isinstance(result, str)
+        return result
 
 
 class AsyncCopilotClient:
@@ -181,36 +188,11 @@ class AsyncCopilotClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    def _sync_request(self, path: str, data: dict | None = None, method: str = "GET") -> dict:
-        """Synchronous HTTP request — identical logic to CopilotClient._request."""
-        url = f"{self.base_url}{path}"
-        body = json.dumps(data).encode() if data is not None else None
-        headers = {"Content-Type": "application/json"} if body else {}
-        if body:
-            method = "POST"
-
-        req = urllib.request.Request(url, data=body, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read())
-        except urllib.error.URLError as e:
-            if isinstance(e, urllib.error.HTTPError):
-                try:
-                    err_body = json.loads(e.read())
-                    msg = err_body.get("error", str(e))
-                except Exception:
-                    msg = str(e)
-                if e.code == 404:
-                    raise ModelNotFoundError(msg) from e
-                raise CopilotProxyError(msg) from e
-            raise ProxyConnectionError(
-                f"Cannot connect to Copilot Proxy at {self.base_url}. "
-                "Is the VS Code extension running? Try reloading VS Code."
-            ) from e
-
     async def _request(self, path: str, data: dict | None = None, method: str = "GET") -> dict:
-        """Make an async HTTP request by running sync urllib in a thread pool."""
-        return await asyncio.to_thread(self._sync_request, path, data, method)
+        """Make an async HTTP request via the shared sync helper in a thread pool."""
+        return await asyncio.to_thread(
+            _http_request, self.base_url, path, data, method, self.timeout
+        )
 
     async def is_running(self) -> bool:
         """Check if the proxy server is running and healthy (non-blocking)."""
@@ -269,7 +251,8 @@ class AsyncCopilotClient:
         asyncio.Queue. A sentinel value of None signals end-of-stream.
         """
         queue: asyncio.Queue[str | None] = asyncio.Queue()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
+        stop_event = threading.Event()
 
         def _read_sse() -> None:
             url = f"{self.base_url}/v1/chat/completions"
@@ -278,25 +261,34 @@ class AsyncCopilotClient:
                 data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json"},
             )
+
+            def _put(item: str | BaseException | None) -> None:
+                try:
+                    loop.call_soon_threadsafe(queue.put_nowait, item)
+                except RuntimeError:
+                    pass  # event loop closed (e.g. early break)
+
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                     for line in resp:
+                        if stop_event.is_set():
+                            return
                         line = line.decode().strip()
                         if line.startswith("data: ") and line != "data: [DONE]":
                             data = json.loads(line[6:])
                             if "choices" in data and data["choices"]:
                                 delta = data["choices"][0].get("delta", {})
                                 if "content" in delta:
-                                    loop.call_soon_threadsafe(queue.put_nowait, delta["content"])
+                                    _put(delta["content"])
             except urllib.error.URLError as e:
                 exc = ProxyConnectionError(
                     f"Cannot connect to Copilot Proxy at {self.base_url}. "
                     "Is the VS Code extension running?"
                 )
                 exc.__cause__ = e
-                loop.call_soon_threadsafe(queue.put_nowait, exc)
+                _put(exc)
             finally:
-                loop.call_soon_threadsafe(queue.put_nowait, None)
+                _put(None)
 
         thread = threading.Thread(target=_read_sse, daemon=True)
         thread.start()
@@ -310,8 +302,7 @@ class AsyncCopilotClient:
                     raise item
                 yield item
         finally:
-            # Drain remaining items so the producer thread can finish cleanly.
-            thread.join(timeout=self.timeout)
+            stop_event.set()
 
     async def ask(self, prompt: str, model: str | None = None) -> str:
         """Ask a single question and get a string response.
@@ -323,10 +314,10 @@ class AsyncCopilotClient:
         Returns:
             The model's response as a string.
         """
+        # stream=False (default) guarantees a str return from chat()
         result = await self.chat([{"role": "user", "content": prompt}], model=model)
-        if isinstance(result, str):
-            return result
-        return "".join([chunk async for chunk in result])
+        assert isinstance(result, str)
+        return result
 
 
 _default_client: CopilotClient | None = None
