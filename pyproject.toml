@@ -1,6 +1,6 @@
 [project]
 name = "copilot-lm-proxy"
-version = "0.2.0"
+version = "0.3.0"
 description = "Python client for accessing GitHub Copilot LLMs via local proxy"
 readme = "README.md"
 license = "MIT"
@@ -20,7 +20,7 @@ classifiers = [
 
 [project.optional-dependencies]
 pydantic = ["pydantic>=2.0"]
-dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-asyncio>=0.23"]
 
 [project.urls]
 Homepage = "https://github.com/hsaghir/copilot-lm-proxy"
@@ -36,6 +36,7 @@ packages = ["src/copilot_proxy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py310"

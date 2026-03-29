@@ -9,24 +9,32 @@ Usage:
 """
 
 from .client import (
+    AsyncCopilotClient,
     CopilotClient,
     CopilotProxyError,
     ModelNotFoundError,
     ProxyConnectionError,
     ask,
+    async_ask,
+    async_chat,
+    async_list_models,
     chat,
     is_running,
     list_models,
 )
 
 __all__ = [
+    "AsyncCopilotClient",
     "CopilotClient",
     "CopilotProxyError",
     "ProxyConnectionError",
     "ModelNotFoundError",
     "ask",
+    "async_ask",
+    "async_chat",
+    "async_list_models",
     "chat",
     "is_running",
     "list_models",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

@@ -85,6 +85,66 @@ for m in list_models():
     print(f"  {m['id']} ({m['vendor']})")
 ```
 
+### Async Python Client
+
+`AsyncCopilotClient` is a drop-in async replacement for `CopilotClient`, ideal for
+async frameworks such as **FastAPI**, **aiohttp**, or any `asyncio`-based application.
+All I/O runs in a thread-pool executor via `asyncio.to_thread` — zero extra dependencies.
+
+```python
+import asyncio
+from copilot_proxy import AsyncCopilotClient
+
+async def main():
+    client = AsyncCopilotClient()
+
+    # 1. Single question — awaitable, never blocks the event loop
+    answer = await client.ask("Explain neural networks in one sentence")
+    print(answer)
+
+    # 2. Multi-turn conversation (non-streaming)
+    response = await client.chat([
+        {"role": "system", "content": "You are a concise assistant."},
+        {"role": "user", "content": "What is the capital of France?"},
+    ], model="gpt-4.1")
+    print(response)
+
+    # 3. Streaming output — async for over chunks as they arrive
+    async for chunk in await client.chat(
+        [{"role": "user", "content": "Count to five."}],
+        stream=True,
+    ):
+        print(chunk, end="", flush=True)
+    print()
+
+    # 4. Parallel concurrent requests — the primary value of the async client
+    prompts = [
+        "Summarise the Python GIL in one sentence.",
+        "What is asyncio.gather?",
+        "Name one benefit of async/await.",
+    ]
+    results = await asyncio.gather(*[client.ask(p) for p in prompts])
+    for prompt, result in zip(prompts, results):
+        print(f"Q: {prompt}\nA: {result}\n")
+
+asyncio.run(main())
+```
+
+**FastAPI example** — serve Copilot responses without blocking request handlers:
+
+```python
+from fastapi import FastAPI
+from copilot_proxy import AsyncCopilotClient
+
+app = FastAPI()
+client = AsyncCopilotClient()
+
+@app.get("/ask")
+async def ask_endpoint(prompt: str) -> dict:
+    answer = await client.ask(prompt)
+    return {"answer": answer}
+```
+
 ### OpenAI Python Client (drop-in compatible)
 
 ```python

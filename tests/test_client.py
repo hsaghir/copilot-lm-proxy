@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import http.server
-import json
-import threading
+import asyncio
 import urllib.error
 from typing import Generator
 from unittest.mock import patch
@@ -12,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from copilot_proxy import (
+    AsyncCopilotClient,
     CopilotClient,
     CopilotProxyError,
     ModelNotFoundError,
@@ -20,103 +19,6 @@ from copilot_proxy import (
     chat,
     list_models,
 )
-
-
-# ---------------------------------------------------------------------------
-# Fixtures: a tiny HTTP server that mimics the proxy extension
-# ---------------------------------------------------------------------------
-
-MOCK_MODELS = [
-    {"id": "gpt-4.1", "family": "gpt-4.1", "vendor": "copilot", "version": "gpt-4.1-2025-04-14", "maxInputTokens": 111424},
-    {"id": "claude-sonnet-4", "family": "claude-sonnet-4", "vendor": "copilot", "version": "claude-sonnet-4", "maxInputTokens": 127805},
-]
-
-
-class MockProxyHandler(http.server.BaseHTTPRequestHandler):
-    """Minimal handler that behaves like the VS Code extension proxy."""
-
-    def log_message(self, format: str, *args: object) -> None:
-        pass  # suppress logs during tests
-
-    def _read_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", 0))
-        if length:
-            return json.loads(self.rfile.read(length))
-        return {}
-
-    def _send_json(self, obj: dict, status: int = 200) -> None:
-        body = json.dumps(obj).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self) -> None:
-        if self.path == "/v1/models":
-            self._send_json({"object": "list", "data": MOCK_MODELS, "models": MOCK_MODELS})
-        elif self.path == "/health":
-            self._send_json({"status": "ok", "pid": 12345})
-        else:
-            self._send_json({"error": "Not found"}, 404)
-
-    def do_POST(self) -> None:
-        if self.path == "/v1/models":
-            self._send_json({"object": "list", "data": MOCK_MODELS, "models": MOCK_MODELS})
-
-        elif self.path == "/v1/chat/completions":
-            data = self._read_body()
-            model = data.get("model", "gpt-4.1")
-            messages = data.get("messages", [])
-            stream = data.get("stream", False)
-
-            # Simulate model-not-found
-            if model == "nonexistent-model":
-                self._send_json({"error": "No models available. Is Copilot signed in?"}, 404)
-                return
-
-            # Build a deterministic response from the last user message
-            last_msg = messages[-1]["content"] if messages else ""
-            reply = f"Mock response to: {last_msg}"
-
-            if stream:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream")
-                self.send_header("Cache-Control", "no-cache")
-                self.end_headers()
-                # Send reply word-by-word as SSE chunks
-                for word in reply.split():
-                    chunk = json.dumps({"choices": [{"delta": {"content": word + " "}}]})
-                    self.wfile.write(f"data: {chunk}\n\n".encode())
-                    self.wfile.flush()
-                self.wfile.write(b"data: [DONE]\n\n")
-                self.wfile.flush()
-            else:
-                self._send_json({
-                    "model": model,
-                    "choices": [{
-                        "message": {"role": "assistant", "content": reply},
-                        "finish_reason": "stop",
-                    }],
-                })
-        else:
-            self._send_json({"error": "Not found"}, 404)
-
-    def do_OPTIONS(self) -> None:
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.end_headers()
-
-
-@pytest.fixture(scope="module")
-def mock_server() -> Generator[str, None, None]:
-    """Start a mock proxy server and yield its base URL."""
-    server = http.server.HTTPServer(("127.0.0.1", 0), MockProxyHandler)
-    port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{port}"
-    server.shutdown()
 
 
 @pytest.fixture
@@ -281,3 +183,187 @@ class TestEdgeCases:
         # Should not raise; just iterate
         chunks = list(result)
         assert isinstance(chunks, list)
+
+
+# ---------------------------------------------------------------------------
+# Tests: AsyncCopilotClient
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def async_client(mock_server: str) -> AsyncCopilotClient:
+    """Create an AsyncCopilotClient pointing at the mock server."""
+    return AsyncCopilotClient(base_url=mock_server, timeout=10)
+
+
+class TestAsyncCopilotClient:
+    """Tests for AsyncCopilotClient — basic instantiation and async methods."""
+
+    def test_instantiation_defaults(self) -> None:
+        c = AsyncCopilotClient()
+        assert c.base_url.startswith("http")
+        assert c.timeout == 120
+
+    def test_instantiation_custom(self, mock_server: str) -> None:
+        c = AsyncCopilotClient(base_url=mock_server, timeout=5)
+        assert c.base_url == mock_server.rstrip("/")
+        assert c.timeout == 5
+
+    def test_instantiation_trailing_slash(self, mock_server: str) -> None:
+        c = AsyncCopilotClient(base_url=mock_server + "/", timeout=10)
+        assert not c.base_url.endswith("/")
+
+    def test_is_running_true(self, async_client: AsyncCopilotClient) -> None:
+        result = asyncio.run(async_client.is_running())
+        assert result is True
+
+    def test_is_running_false(self) -> None:
+        bad = AsyncCopilotClient(base_url="http://127.0.0.1:1", timeout=2)
+        result = asyncio.run(bad.is_running())
+        assert result is False
+
+    def test_list_models_returns_list(self, async_client: AsyncCopilotClient) -> None:
+        models = asyncio.run(async_client.list_models())
+        assert isinstance(models, list)
+        assert len(models) > 0
+
+    def test_list_models_has_required_keys(self, async_client: AsyncCopilotClient) -> None:
+        models = asyncio.run(async_client.list_models())
+        for m in models:
+            assert "id" in m
+            assert "vendor" in m
+            assert "maxInputTokens" in m
+
+    def test_is_coroutine(self, async_client: AsyncCopilotClient) -> None:
+        """is_running() and list_models() must return awaitables."""
+        import inspect
+        coro1 = async_client.is_running()
+        coro2 = async_client.list_models()
+        assert inspect.iscoroutine(coro1)
+        assert inspect.iscoroutine(coro2)
+        coro1.close()
+        coro2.close()
+
+
+# ---------------------------------------------------------------------------
+# Tests: AsyncCopilotClient.chat and .ask (task 1.2)
+# ---------------------------------------------------------------------------
+
+class TestAsyncCopilotClientChat:
+    """Tests for AsyncCopilotClient.chat() and .ask()."""
+
+    def test_chat_non_streaming_returns_string(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            return await async_client.chat([{"role": "user", "content": "Hello"}])
+        result = asyncio.run(run())
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_chat_non_streaming_echoes_content(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            return await async_client.chat([{"role": "user", "content": "async test"}])
+        result = asyncio.run(run())
+        assert "async test" in result
+
+    def test_chat_with_model(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            return await async_client.chat(
+                [{"role": "user", "content": "Hi"}],
+                model="gpt-4.1",
+            )
+        result = asyncio.run(run())
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_chat_streaming_yields_chunks(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            chunks = []
+            async for chunk in await async_client.chat(
+                [{"role": "user", "content": "Hello world"}],
+                stream=True,
+            ):
+                chunks.append(chunk)
+            return chunks
+        chunks = asyncio.run(run())
+        assert len(chunks) > 0
+        assert all(isinstance(c, str) for c in chunks)
+        full = "".join(chunks)
+        assert "Hello" in full
+
+    def test_chat_streaming_concatenates_to_valid_response(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            parts = []
+            async for chunk in await async_client.chat(
+                [{"role": "user", "content": "stream test"}],
+                stream=True,
+            ):
+                parts.append(chunk)
+            return "".join(parts)
+        full = asyncio.run(run())
+        assert len(full) > 0
+        assert "stream" in full
+
+    def test_chat_streaming_with_model(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            parts = []
+            async for chunk in await async_client.chat(
+                [{"role": "user", "content": "model stream"}],
+                model="claude-sonnet-4",
+                stream=True,
+            ):
+                parts.append(chunk)
+            return parts
+        chunks = asyncio.run(run())
+        assert len(chunks) > 0
+
+    def test_chat_streaming_break_no_hang(self, async_client: AsyncCopilotClient) -> None:
+        """Breaking out of the async generator should not hang or raise."""
+        async def run():
+            first = None
+            async for chunk in await async_client.chat(
+                [{"role": "user", "content": "break test"}],
+                stream=True,
+            ):
+                first = chunk
+                break  # cancel early
+            return first
+        result = asyncio.run(run())
+        assert result is not None
+
+    def test_ask_returns_string(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            return await async_client.ask("What is Python?")
+        result = asyncio.run(run())
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_ask_echoes_prompt(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            return await async_client.ask("my unique prompt text")
+        result = asyncio.run(run())
+        assert "my unique prompt text" in result
+
+    def test_ask_with_model(self, async_client: AsyncCopilotClient) -> None:
+        async def run():
+            return await async_client.ask("Hello", model="gpt-4.1")
+        result = asyncio.run(run())
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_ask_equivalent_to_chat(self, async_client: AsyncCopilotClient) -> None:
+        """ask(prompt) should match chat([{role:user, content:prompt}])."""
+        async def run():
+            r1 = await async_client.ask("equivalence check")
+            r2 = await async_client.chat([{"role": "user", "content": "equivalence check"}])
+            return r1, r2
+        r1, r2 = asyncio.run(run())
+        assert r1 == r2
+
+    def test_chat_model_not_found(self, async_client: AsyncCopilotClient) -> None:
+        from copilot_proxy import ModelNotFoundError
+        async def run():
+            await async_client.chat(
+                [{"role": "user", "content": "hi"}],
+                model="nonexistent-model",
+            )
+        with pytest.raises(ModelNotFoundError):
+            asyncio.run(run())
