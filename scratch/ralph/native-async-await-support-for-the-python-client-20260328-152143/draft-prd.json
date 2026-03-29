@@ -1,0 +1,160 @@
+{
+  "title": "Native Async/Await Support for the Python Client",
+  "description": "The copilot_proxy Python client is entirely synchronous, which is a fundamental architectural mismatch with the modern Python AI ecosystem. Every major AI agent framework (LangGraph, LangChain, AutoGen, CrewAI), every async web framework (FastAPI, Starlette, aiohttp), and every async notebook environment (JupyterLab) expects async-compatible APIs. Using the current synchronous client inside any of these contexts blocks the event loop, degrades throughput, and makes parallel model calls impossible without resorting to threads.\n\nThe fix is to add an AsyncCopilotClient class alongside the existing CopilotClient, plus module-level async_ask, async_chat, and async_list_models convenience functions. Python 3.10+ has asyncio built-in, so this can be done with zero new runtime dependencies \u2014 preserving the project's core 'zero dependencies' philosophy. Non-blocking HTTP can be implemented via asyncio.to_thread() wrapping the sync urllib calls, which is idiomatic, robust, and avoids reimplementing raw HTTP over asyncio streams. Async streaming uses asyncio.Queue to bridge the sync SSE reader thread with an async generator consumer.\n\nThis single structural change unlocks the proxy for the entire class of async Python applications: users can await model calls in FastAPI route handlers without blocking other requests, fire off parallel queries to multiple models and collect results with asyncio.gather(), consume streamed responses with async for in websocket handlers, and compose the client naturally inside async agent orchestration loops. It doubles the surface area of the public API in a fully backward-compatible way and positions the library as a first-class citizen in modern Python AI development.",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Core Async Implementation",
+      "priority": 100,
+      "tasks": [
+        {
+          "id": "1.1",
+          "name": "Add AsyncCopilotClient class with async request primitives",
+          "priority": 100,
+          "status": "not-started",
+          "description": "Add the AsyncCopilotClient class to src/copilot_proxy/client.py. Implement async def _request(path, data, method) using asyncio.to_thread() to run the existing synchronous urllib logic in a thread-pool executor, keeping zero runtime dependencies. Add async def is_running() -> bool and async def list_models() -> list[dict] that delegate to the async _request. The class constructor signature must match CopilotClient(base_url, timeout) exactly so users can swap in AsyncCopilotClient as a drop-in with no other code changes. Add the TYPE_CHECKING-gated import for AsyncIterator from collections.abc to keep the type annotations correct on Python 3.10+. Run: pytest tests/test_client.py -v",
+          "files": [
+            "src/copilot_proxy/client.py"
+          ],
+          "acceptanceCriteria": [
+            "AsyncCopilotClient class exists and can be instantiated with default and custom base_url/timeout arguments",
+            "async def is_running() returns True when proxy is running and False when it is not, without blocking the event loop",
+            "async def list_models() returns a non-empty list of dicts with 'id', 'vendor', and 'maxInputTokens' keys",
+            "No new entries added to pyproject.toml dependencies (asyncio is stdlib)"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "1.2",
+          "name": "Implement async def chat() with non-streaming and async streaming support",
+          "priority": 100,
+          "status": "not-started",
+          "description": "Add async def chat(messages, model, stream) to AsyncCopilotClient. For non-streaming mode, delegate to async _request and extract choices[0].message.content. For streaming mode, implement _async_stream_response() as an async generator: spin up the synchronous SSE reader in a thread via asyncio.to_thread or loop.run_in_executor, push each yielded string chunk into an asyncio.Queue, and yield chunks from the queue in the async generator on the caller side. The sentinel value None signals end-of-stream. The method signature must return Union[str, AsyncIterator[str]] and callers must be able to use 'async for chunk in client.chat(..., stream=True)'. Also add async def ask(prompt, model) -> str as a thin wrapper over chat. Run: pytest tests/test_async_client.py -v",
+          "files": [
+            "src/copilot_proxy/client.py"
+          ],
+          "acceptanceCriteria": [
+            "await client.chat(messages) returns a non-empty string response",
+            "async for chunk in client.chat(messages, stream=True) yields non-empty string chunks that concatenate to a valid response",
+            "await client.ask(prompt) returns a non-empty string and is equivalent to await client.chat([{role:user, content:prompt}])",
+            "Cancelling the async generator (e.g. via break) does not leave dangling threads or unclosed resources"
+          ],
+          "dependencies": [
+            "1.1"
+          ]
+        },
+        {
+          "id": "1.3",
+          "name": "Add module-level async convenience functions and export from __init__.py",
+          "priority": 100,
+          "status": "not-started",
+          "description": "Add module-level async convenience functions async_ask(prompt, model), async_chat(messages, model, stream), and async_list_models() to src/copilot_proxy/client.py, mirroring the pattern of the existing synchronous ask/chat/list_models functions. Maintain a module-level _default_async_client: AsyncCopilotClient | None = None and a _get_async_client() factory that lazily creates the singleton, respecting the COPILOT_PROXY_URL environment variable. Export AsyncCopilotClient, async_ask, async_chat, and async_list_models from src/copilot_proxy/__init__.py and add them to __all__. Bump __version__ in __init__.py to 0.3.0 to signal the new capability. Run: pytest tests/test_client.py tests/test_async_client.py -v",
+          "files": [
+            "src/copilot_proxy/client.py",
+            "src/copilot_proxy/__init__.py"
+          ],
+          "acceptanceCriteria": [
+            "from copilot_proxy import async_ask, async_chat, async_list_models, AsyncCopilotClient succeeds without ImportError",
+            "All four new symbols appear in copilot_proxy.__all__",
+            "asyncio.run(async_ask('Hello')) returns a string when called from a synchronous script with the mock server patched",
+            "__version__ is updated to 0.3.0 in both __init__.py and pyproject.toml"
+          ],
+          "dependencies": [
+            "1.2"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "Testing",
+      "priority": 90,
+      "tasks": [
+        {
+          "id": "2.1",
+          "name": "Add pytest-asyncio dev dependency and configure asyncio test mode",
+          "priority": 100,
+          "status": "not-started",
+          "description": "Add pytest-asyncio>=0.23 to the [project.optional-dependencies] dev list in pyproject.toml. Set asyncio_mode = 'auto' under [tool.pytest.ini_options] in pyproject.toml so that all async test functions are automatically recognized without needing the @pytest.mark.asyncio decorator on each one. This is the recommended pytest-asyncio configuration for new projects and avoids decorator boilerplate in every test. Verify the existing synchronous tests in tests/test_client.py still pass unmodified, confirming that the asyncio_mode = 'auto' setting does not break sync tests. Run: pip install -e '.[dev]' && pytest tests/test_client.py -v",
+          "files": [
+            "pyproject.toml"
+          ],
+          "acceptanceCriteria": [
+            "pytest-asyncio>=0.23 appears in [project.optional-dependencies].dev in pyproject.toml",
+            "asyncio_mode = 'auto' is set under [tool.pytest.ini_options]",
+            "All existing tests in tests/test_client.py pass without modification after the config change",
+            "pip install -e '.[dev]' completes successfully and pytest --co lists async tests"
+          ],
+          "dependencies": [
+            "1.3"
+          ]
+        },
+        {
+          "id": "2.2",
+          "name": "Write comprehensive async unit tests in tests/test_async_client.py",
+          "priority": 100,
+          "status": "not-started",
+          "description": "Create tests/test_async_client.py that mirrors the structure of tests/test_client.py. Reuse the existing mock_server module-scoped fixture (import it from test_client or refactor it into a conftest.py). Write async tests for: AsyncCopilotClient.list_models(), is_running() returning True and False, ask() and chat() returning strings, chat(stream=True) producing chunks via async for, ModelNotFoundError on nonexistent-model, ProxyConnectionError on bad port, trailing slash in base_url, unicode and long prompts, and all three module-level async functions (async_ask, async_chat, async_list_models) using unittest.mock.patch on _default_async_client. Aim for at least 15 test cases mirroring the coverage of TestCopilotClient and TestModuleFunctions. Run: pytest tests/test_async_client.py -v",
+          "files": [
+            "tests/test_async_client.py",
+            "tests/conftest.py"
+          ],
+          "acceptanceCriteria": [
+            "tests/test_async_client.py contains at least 15 async test functions",
+            "All async tests pass with pytest tests/test_async_client.py -v",
+            "Async streaming test verifies that chunks join to contain the expected echoed content",
+            "The mock_server fixture is shared via conftest.py so both test files can use it without duplication"
+          ],
+          "dependencies": [
+            "2.1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "Documentation and Examples",
+      "priority": 80,
+      "tasks": [
+        {
+          "id": "3.1",
+          "name": "Add async usage section to README.md",
+          "priority": 100,
+          "status": "not-started",
+          "description": "Add a new '### Async Python Client' section to README.md immediately after the existing '### Python Client (zero dependencies)' section. The section must include a standalone code example demonstrating: (1) await async_ask(prompt, model) for a single call, (2) await async_chat(messages, stream=False) for a multi-turn exchange, (3) async for chunk in async_chat(messages, stream=True) for streaming output, and (4) asyncio.gather(*[async_ask(p) for p in prompts]) to show the primary value proposition of parallel concurrent requests. Add a brief note that AsyncCopilotClient is a drop-in replacement for CopilotClient for use in async frameworks like FastAPI. Run: python -m doctest README.md --option ELLIPSIS || true",
+          "files": [
+            "README.md"
+          ],
+          "acceptanceCriteria": [
+            "README.md contains a '### Async Python Client' section with working code examples",
+            "The asyncio.gather parallel example is present and clearly demonstrates the concurrent use case",
+            "The section mentions FastAPI or another async framework as a motivating use case",
+            "All existing README sections remain intact and unmodified"
+          ],
+          "dependencies": [
+            "1.3"
+          ]
+        },
+        {
+          "id": "3.2",
+          "name": "Add examples/async_usage.py with runnable async examples",
+          "priority": 80,
+          "status": "not-started",
+          "description": "Create examples/async_usage.py as a standalone runnable script demonstrating async capabilities. The script should use asyncio.run(main()) at the bottom and define an async main() that runs four demonstrations: (1) await async_list_models() to print available models, (2) await async_ask() for a simple question, (3) async streaming with async for to print chunks in real-time with end='' flush, and (4) asyncio.gather() to send three different prompts to three different models concurrently and print all results with wall-clock timing showing the speedup over sequential calls. Include inline comments explaining why each pattern is valuable. The script must be importable (guard the asyncio.run call with if __name__ == '__main__'). Run: python -c 'import ast, sys; ast.parse(open(\"examples/async_usage.py\").read()); print(\"Syntax OK\")'",
+          "files": [
+            "examples/async_usage.py"
+          ],
+          "acceptanceCriteria": [
+            "examples/async_usage.py parses without syntax errors",
+            "The file contains asyncio.gather() usage demonstrating parallel concurrent requests",
+            "The file contains async streaming with async for and real-time print output",
+            "The if __name__ == '__main__' guard is present so the file is safely importable"
+          ],
+          "dependencies": [
+            "3.1"
+          ]
+        }
+      ]
+    }
+  ]
+}

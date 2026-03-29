@@ -1,0 +1,35 @@
+● Read draft-prd.json
+  │ scratch/ralph/native-async-await-support-for-the-python-client-20260328-152143/draft-prd.json
+  └ 160 lines read
+
+● Read draft-prd-review.md
+  │ scratch/ralph/native-async-await-support-for-the-python-client-20260328-152143/draft-prd-review.
+  │ md
+  └ 43 lines read
+
+● Create prd.md +77
+  └ scratch/ralph/native-async-await-support-for-the-python-client-20260328-152143/prd.md
+
+Now writing the `prd.json` — skeleton first, then populate phase by phase:
+
+● Create prd.json +163
+  └ scratch/ralph/native-async-await-support-for-the-python-client-20260328-152143/prd.json
+
+Both files are written. Here's a summary of all corrections applied from the review:
+
+| Task | Change |
+|------|--------|
+| **1.1** | `Run:` changed to smoke-import check; TYPE_CHECKING wording softened to "optional/best-practice, not mandatory" |
+| **1.2** | `Run:` changed to smoke-import check (test file doesn't exist yet at this stage) |
+| **1.3** | `pyproject.toml` added to `files` array; `Run:` changed to `pytest tests/test_client.py -v` only |
+| **2.2** | `tests/test_client.py` added to `files` array; description updated to mandate moving fixture to `conftest.py` (removed the "import from test_client" option) |
+
+Tasks 2.1, 3.1, and 3.2 were reviewed as OK and left unchanged.
+
+
+Total usage est:        1 Premium request
+API time spent:         1m 38s
+Total session time:     1m 42s
+Total code changes:     +240 -0
+Breakdown by AI model:
+ claude-sonnet-4.6        111.5k in, 6.8k out, 90.4k cached (Est. 1 Premium request)

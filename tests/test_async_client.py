@@ -6,19 +6,22 @@ async def test_* functions are automatically collected and run without decorator
 
 from __future__ import annotations
 
+import inspect
 from unittest.mock import patch
 
 import pytest
 
+import copilot_proxy
 from copilot_proxy import (
     AsyncCopilotClient,
     ModelNotFoundError,
     ProxyConnectionError,
     async_ask,
     async_chat,
+    async_is_running,
     async_list_models,
 )
-from copilot_proxy.client import CopilotClient
+from copilot_proxy.client import _get_async_client
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +32,34 @@ from copilot_proxy.client import CopilotClient
 def async_client(mock_server: str) -> AsyncCopilotClient:
     """Create an AsyncCopilotClient pointing at the mock server."""
     return AsyncCopilotClient(base_url=mock_server, timeout=10)
+
+
+# ---------------------------------------------------------------------------
+# Tests: instantiation
+# ---------------------------------------------------------------------------
+
+class TestAsyncInstantiation:
+    def test_default_constructor(self) -> None:
+        client = AsyncCopilotClient()
+        assert client.base_url.startswith("http")
+        assert client.timeout == 120
+
+    def test_custom_base_url(self) -> None:
+        client = AsyncCopilotClient(base_url="http://127.0.0.1:9999")
+        assert client.base_url == "http://127.0.0.1:9999"
+
+    def test_custom_timeout(self) -> None:
+        client = AsyncCopilotClient(timeout=30)
+        assert client.timeout == 30
+
+    def test_trailing_slash_stripped(self) -> None:
+        client = AsyncCopilotClient(base_url="http://127.0.0.1:9999/")
+        assert not client.base_url.endswith("/")
+
+    def test_custom_base_url_and_timeout(self) -> None:
+        client = AsyncCopilotClient(base_url="http://127.0.0.1:5000", timeout=60)
+        assert client.base_url == "http://127.0.0.1:5000"
+        assert client.timeout == 60
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +109,15 @@ class TestAsyncIsRunning:
         result = await async_client.is_running()
         assert isinstance(result, bool)
 
+    def test_methods_return_coroutines(self, async_client: AsyncCopilotClient) -> None:
+        """is_running() and list_models() must return awaitables."""
+        coro1 = async_client.is_running()
+        coro2 = async_client.list_models()
+        assert inspect.iscoroutine(coro1)
+        assert inspect.iscoroutine(coro2)
+        coro1.close()
+        coro2.close()
+
 
 # ---------------------------------------------------------------------------
 # Tests: AsyncCopilotClient.ask()
@@ -114,6 +154,12 @@ class TestAsyncAsk:
         bad = AsyncCopilotClient(base_url="http://127.0.0.1:1", timeout=2)
         with pytest.raises(ProxyConnectionError, match="Cannot connect"):
             await bad.ask("Hello")
+
+    async def test_ask_equivalent_to_chat(self, async_client: AsyncCopilotClient) -> None:
+        """ask(prompt) should be equivalent to chat([{role:user, content:prompt}])."""
+        via_ask = await async_client.ask("Hello compare")
+        via_chat = await async_client.chat([{"role": "user", "content": "Hello compare"}])
+        assert via_ask == via_chat
 
 
 # ---------------------------------------------------------------------------
@@ -261,3 +307,44 @@ class TestAsyncModuleFunctions:
             assert "id" in m
             assert "vendor" in m
             assert "maxInputTokens" in m
+
+    async def test_async_is_running(self, mock_server: str) -> None:
+        patched = AsyncCopilotClient(base_url=mock_server, timeout=10)
+        with patch("copilot_proxy.client._default_async_client", patched):
+            result = await async_is_running()
+        assert result is True
+
+
+# ---------------------------------------------------------------------------
+# Tests: exports and singleton
+# ---------------------------------------------------------------------------
+
+class TestExports:
+    def test_async_copilot_client_in_all(self) -> None:
+        assert "AsyncCopilotClient" in copilot_proxy.__all__
+
+    def test_async_ask_in_all(self) -> None:
+        assert "async_ask" in copilot_proxy.__all__
+
+    def test_async_chat_in_all(self) -> None:
+        assert "async_chat" in copilot_proxy.__all__
+
+    def test_async_list_models_in_all(self) -> None:
+        assert "async_list_models" in copilot_proxy.__all__
+
+    def test_async_is_running_in_all(self) -> None:
+        assert "async_is_running" in copilot_proxy.__all__
+
+    def test_version_is_0_3_0(self) -> None:
+        assert copilot_proxy.__version__ == "0.3.0"
+
+
+class TestGetAsyncClient:
+    def test_returns_async_copilot_client(self) -> None:
+        client = _get_async_client()
+        assert isinstance(client, AsyncCopilotClient)
+
+    def test_singleton_same_instance(self) -> None:
+        c1 = _get_async_client()
+        c2 = _get_async_client()
+        assert c1 is c2

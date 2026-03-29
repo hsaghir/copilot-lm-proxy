@@ -373,6 +373,11 @@ def _get_async_client() -> AsyncCopilotClient:
     return _default_async_client
 
 
+async def async_is_running() -> bool:
+    """Check if the Copilot Proxy server is running (async)."""
+    return await _get_async_client().is_running()
+
+
 async def async_list_models() -> list[dict]:
     """List available Copilot models (async)."""
     return await _get_async_client().list_models()
