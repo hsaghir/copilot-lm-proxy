@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
+import { execSync } from 'child_process';
 
 let server: http.Server | null = null;
 let statusBarItem: vscode.StatusBarItem;
@@ -327,6 +328,52 @@ function stopStandby() {
     }
 }
 
+/**
+ * Attempt to kill whatever process is holding the given port.
+ * Returns true if a process was found and killed.
+ */
+function killPortHolder(port: number): boolean {
+    try {
+        const platform = process.platform;
+        let pids: string[] = [];
+
+        if (platform === 'win32') {
+            // netstat -ano | findstr :PORT | findstr LISTENING
+            const out = execSync(
+                `netstat -ano | findstr ":${port}" | findstr LISTENING`,
+                { encoding: 'utf8', timeout: 5000 }
+            );
+            // Last column is PID
+            for (const line of out.trim().split('\n')) {
+                const pid = line.trim().split(/\s+/).pop();
+                if (pid && /^\d+$/.test(pid) && pid !== '0') {
+                    pids.push(pid);
+                }
+            }
+            for (const pid of [...new Set(pids)]) {
+                try {
+                    execSync(`taskkill /F /PID ${pid}`, { timeout: 5000 });
+                    console.log(`Copilot LM Proxy: Killed PID ${pid} on port ${port} (Windows)`);
+                } catch { /* already dead */ }
+            }
+        } else {
+            // macOS / Linux: lsof -ti:PORT
+            const out = execSync(`lsof -ti:${port}`, { encoding: 'utf8', timeout: 5000 });
+            pids = out.trim().split('\n').filter(p => /^\d+$/.test(p));
+            for (const pid of pids) {
+                try {
+                    process.kill(Number(pid), 'SIGKILL');
+                    console.log(`Copilot LM Proxy: Killed PID ${pid} on port ${port}`);
+                } catch { /* already dead */ }
+            }
+        }
+        return pids.length > 0;
+    } catch {
+        // lsof/netstat found nothing — port not actually held
+        return false;
+    }
+}
+
 function startServer(retries = 3) {
     if (server) {
         server.close();
@@ -352,17 +399,24 @@ function startServer(retries = 3) {
                 return;
             }
 
-            // Port is held by a dead process
-            if (retries > 0) {
-                const delay = (4 - retries) * 1000; // 1s, 2s, 3s
-                console.log(`Copilot LM Proxy: Port ${getPort()} held by dead process, retrying in ${delay}ms (${retries} left)...`);
+            // Port is held by a dead/unresponsive process — kill it and retry
+            console.log(`Copilot LM Proxy: Port ${getPort()} blocked by unresponsive process, attempting cleanup...`);
+            const killed = killPortHolder(getPort());
+
+            if (killed && retries > 0) {
+                console.log(`Copilot LM Proxy: Killed blocking process, retrying in 1s...`);
+                updateStatusBar('error');
+                setTimeout(() => startServer(retries - 1), 1000);
+            } else if (retries > 0) {
+                const delay = (4 - retries) * 1000;
+                console.log(`Copilot LM Proxy: Port ${getPort()} still busy, retrying in ${delay}ms (${retries} left)...`);
                 updateStatusBar('error');
                 setTimeout(() => startServer(retries - 1), delay);
             } else {
                 updateStatusBar('error');
                 vscode.window.showErrorMessage(
-                    `Copilot LM Proxy: Port ${getPort()} is blocked by a dead process. ` +
-                    `Run: lsof -ti:${getPort()} | xargs kill -9`,
+                    `Copilot LM Proxy: Port ${getPort()} is still blocked after cleanup attempts. ` +
+                    `Try reloading VS Code.`,
                     'Retry'
                 ).then(choice => {
                     if (choice === 'Retry') { startServer(); }
